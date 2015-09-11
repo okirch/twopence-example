@@ -1,8 +1,9 @@
+
+# For each node that you need in your test scenario,
+# your nodes file should have at least a "node" statement.
+# For each node, you can request that additional repositories
+# are enabled, and that specific packages are installed on top
+# of the provisioned VM image.
+
 node		client
-
-# Eric syntax - incompatible with slenkins-run :-(
-repository	${CHANNEL_UPDATES_CLIENT}
-
-install		ntp
-# Need to update apparmor-profiles - there was an ugly bug
-install		apparmor-profiles
+install		coreutils
