@@ -1,0 +1,155 @@
+#!/usr/bin/python
+#
+# Copyright (C) 2015 Olaf Kirch <okir@suse.de>
+#
+# Small sample twopence script that shows some of the more common
+# features.
+#
+
+import twopence
+import susetest
+
+journal = None
+client = None
+server = None
+
+##################################################################
+# Set up the test suite
+##################################################################
+def setup():
+	global client, server, journal
+
+	# If you want, you can tune the internal logging of
+	# twopence here. Currently, the maximum debug level
+	# used is 2.
+	# twopence.setDebugLevel(0)
+
+	# Obtain the Config instance for this test run.
+	# The string provided here is used in the JUnit report
+	# generated.
+	config = susetest.Config("timezones")
+
+	# Obtain the global instance used for logging results
+	journal = config.journal
+
+	# Obtain target handle for the client node
+	# and verify that it has an IPv4 address
+	client = config.target("client")
+	if not client.ipaddr:
+		journal.fatal("No IP address set for client");
+
+	# Obtain target handle for the server node
+	# and verify that it has an IPv4 address
+	#server = config.target("server")
+	#if not server.ipaddr:
+	#	journal.fatal("No IP address set for server");
+
+##################################################################
+# The next group of functions demonstrates how to remote commands
+# can be used, and how these can be reported as individual test
+# cases.
+##################################################################
+def touch_file(node, path, time):
+	global journal
+
+	# This creates a single test case item in the report
+	# that reports the command that was run, and the
+	# test result
+	journal.beginTest("Set the timestamp on file %s" % path)
+	if not node.run("touch --date='%s' %s" % (time, path)):
+		journal.failure("unable to create file/set its time stamp")
+		return False
+
+	journal.success()
+	return True
+
+def verify_tz(node, path, tz, expect):
+	global journal
+
+	journal.beginTest("Verify time zone %s" % tz)
+
+	# Display the time stamp of the given file relative to the
+	# time zone provided.
+	# The command and its output will be logged to the JUnit
+	# test case automatically.
+	status = node.run("TZ=%s date --reference=%s --rfc-3339=seconds" % (tz, path))
+	if not status:
+		journal.failure("date command failed")
+		return False
+	
+	# Compare it to the expected output. Note that status.stdout is a
+	# bytearray, and includes a trailing newline - hence the need to
+	# massage it a bit before we can compare it to the expected output.
+	result = str(status.stdout).strip()
+	if result != expect:
+		journal.failure("bad output of date command")
+		journal.info("expected \"%s\", but got \"%s\"" % (expect, result))
+		return False
+
+	journal.success();
+	return True
+
+# This function executes a group of tests that belong together.
+# Usually, you do not want 100s of independent tests show up in your results,
+# but have a bit of a logical structure to help you see which aspects of the
+# tested functionality are doing well, and which are not.
+#
+# To support that, JUnit has a two-layer hierarchy. Individual tests are
+# represented as <testcase> elements, and can be grouped into <testsuite>
+# elements.
+#
+# I consider it a good idea to put each such group of tests into a python
+# function of their own.
+#
+# So, what this function does is it creates a file using a well-known reference
+# time stamp. We then display the file's creation time relative to various
+# time zones and make sure the output matches what we expected.
+def verify_timezones(node):
+	filename = "/tmp/tstamp"
+
+	# In the JUnit file, we group similar tests into a <testsuite>
+	# element. The first argument ends up in the classname attribute of
+	# this element.
+	journal.beginGroup("tz-basic", "Verify basic time zones");
+	if not touch_file(node, filename, "Sun, 29 Feb 2004 16:21:42 GMT"):
+		return False
+
+	verify_tz(node, filename, "GMT", "2004-02-29 16:21:42+00:00")
+	verify_tz(node, filename, "Asia/Beijing", "2004-03-01 00:21:42+08:00")
+	verify_tz(node, filename, "Europe/Berlin", "2004-02-29 17:21:42+01:00")
+	verify_tz(node, filename, "US/Mountain", "2004-02-29 09:21:42-07:00")
+
+	# Feel free to add more time zones...
+
+	journal.finishGroup();
+
+
+# Other useful things you may find it useful to write groups of tests for:
+#  - Create tests that ensure that we properly switch between
+#	normal time and daylight savings time. Do this for various
+#	time zones
+#	You could use "date --date=..." for this
+#  - Create tests that ensure all leap seconds are reflected in tzdata
+
+
+
+##################################################################
+#
+# Here, we put everything together, kind of as the main() procedure
+#
+
+setup()
+
+# The try/except block is python's mechanism for handling exceptions.
+# 
+try:
+	verify_timezones(client)
+	# If you have added more groups of tests above, you would
+	# call them here
+
+	# Write out the test report
+	journal.writeReport()
+except:
+	# If we caught an exception, we skip all other tests, but
+	# ensure that we write the test report
+	journal.writeReport()

@@ -1,0 +1,8 @@
+node		client
+
+# Eric syntax - incompatible with slenkins-run :-(
+repository	${CHANNEL_UPDATES_CLIENT}
+
+install		ntp
+# Need to update apparmor-profiles - there was an ugly bug
+install		apparmor-profiles

@@ -1,0 +1,12 @@
+#
+# This is a sample config file you can use to
+# run this example on your computer locally.
+#
+# The only thing you need to make sure of is to
+# add your public ssh key to root's .ssh/authorized_keys
+# for the duration of these tests.
+#
+node "client" {
+    target       "ssh:127.0.0.1";
+    ipv4_addr    "127.0.0.1";
+}
